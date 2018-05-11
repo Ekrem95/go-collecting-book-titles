@@ -4,6 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"encoding/xml"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"os"
+	"strconv"
+
 	"github.com/goincremental/negroni-sessions"
 	"github.com/goincremental/negroni-sessions/cookiestore"
 	gmux "github.com/gorilla/mux"
@@ -13,13 +19,9 @@ import (
 	"github.com/yosssi/ace"
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/gorp.v1"
-	"io/ioutil"
-	"net/http"
-	"net/url"
-	"os"
-	"strconv"
 )
 
+// Book ...
 type Book struct {
 	PK             int64  `db:"pk"`
 	Title          string `db:"title"`
@@ -28,15 +30,21 @@ type Book struct {
 	ID             string `db:"id"`
 	User           string `db:"user"`
 }
+
+// User ...
 type User struct {
 	Username string `db:"username"`
 	Secret   []byte `db:"secret"`
 }
+
+// Page ...
 type Page struct {
 	Books  []Book
 	Filter string
 	User   string
 }
+
+// SearchResult ...
 type SearchResult struct {
 	Title  string `xml:"title,attr"`
 	Author string `xml:"author,attr"`
@@ -59,6 +67,7 @@ func initDb() {
 	dbmap.AddTableWithName(User{}, "users").SetKeys(false, "username")
 	dbmap.CreateTablesIfNotExists()
 }
+
 func verifyDatabase(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	if err := db.Ping(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -66,6 +75,7 @@ func verifyDatabase(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 	}
 	next(w, r)
 }
+
 func getBookCollection(books *[]Book, sortCol, filterByClass, username string, w http.ResponseWriter) bool {
 	if sortCol == "" {
 		sortCol = "pk"
@@ -82,6 +92,7 @@ func getBookCollection(books *[]Book, sortCol, filterByClass, username string, w
 	}
 	return true
 }
+
 func getStringFromSession(r *http.Request, key string) string {
 	var strVal string
 	if val := sessions.GetSession(r).Get(key); val != nil {
@@ -89,6 +100,7 @@ func getStringFromSession(r *http.Request, key string) string {
 	}
 	return strVal
 }
+
 func verifyUser(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	if r.URL.Path == "/login" {
 		next(w, r)
@@ -103,7 +115,8 @@ func verifyUser(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	http.Redirect(w, r, "/login", http.StatusTemporaryRedirect)
 }
 
-type LoginPge struct {
+// LoginPage ...
+type LoginPage struct {
 	Error string
 }
 
@@ -112,7 +125,7 @@ func main() {
 	mux := gmux.NewRouter()
 
 	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		var p LoginPge
+		var p LoginPage
 		if r.FormValue("register") != "" {
 			secret, _ := bcrypt.GenerateFromPassword([]byte(r.FormValue("password")), bcrypt.DefaultCost)
 			user := User{r.FormValue("username"), secret}
@@ -180,6 +193,7 @@ func main() {
 			return
 		}
 	}).Methods("GET").Queries("sortBy", "{sortBy:title|author|classification}")
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		template, err := ace.Load("templates/index", "", nil)
 		if err != nil {
@@ -196,6 +210,7 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}).Methods("GET")
+
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
 		var results []SearchResult
 		var err error
@@ -208,6 +223,7 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}).Methods("POST")
+
 	mux.HandleFunc("/books", func(w http.ResponseWriter, r *http.Request) {
 		var book ClassifyBookResponse
 		var err error
@@ -230,6 +246,7 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}).Methods("PUT")
+
 	mux.HandleFunc("/books/{pk}", func(w http.ResponseWriter, r *http.Request) {
 		pk, _ := strconv.ParseInt(gmux.Vars(r)["pk"], 10, 64)
 		var b Book
@@ -243,6 +260,7 @@ func main() {
 		}
 		w.WriteHeader(http.StatusOK)
 	}).Methods("DELETE")
+
 	n := negroni.Classic()
 	n.Use(sessions.Sessions("go-for-web-dev", cookiestore.New([]byte("my-secret-123"))))
 	n.Use(negroni.HandlerFunc(verifyDatabase))
@@ -255,9 +273,12 @@ func main() {
 	n.Run(":" + port)
 }
 
+// ClassifySearchResponse ...
 type ClassifySearchResponse struct {
 	Results []SearchResult `xml:"works>work"`
 }
+
+// ClassifyBookResponse ...
 type ClassifyBookResponse struct {
 	BookData struct {
 		Title  string `xml:"title,attr"`
