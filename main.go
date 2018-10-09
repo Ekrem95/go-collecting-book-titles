@@ -158,16 +158,19 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
-			sessions.GetSession(r).Set("User", nil)
-			sessions.GetSession(r).Set("Filter", nil)
-			http.Redirect(w, r, "/login", http.StatusFound)
-		})
+
 		if err = template.Execute(w, p); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	})
+
+	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+		sessions.GetSession(r).Set("User", nil)
+		sessions.GetSession(r).Set("Filter", nil)
+		http.Redirect(w, r, "/login", http.StatusFound)
+	})
+
 	mux.HandleFunc("/books", func(w http.ResponseWriter, r *http.Request) {
 		var b []Book
 		if !getBookCollection(&b, getStringFromSession(r, "SortBy"), r.FormValue("filter"),
